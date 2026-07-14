@@ -357,84 +357,59 @@ export default function App() {
       ) : (
         /* SALA DE STREAMING */
         <div className="w-full h-screen max-h-[95vh] flex flex-col md:flex-row gap-4">
-          {/* Control superior para videoteca y carga */}
-          <div className="absolute top-4 left-4 right-4 z-10 flex flex-col gap-2 bg-gray-900/95 p-3 rounded-lg shadow-xl opacity-100 group-hover:opacity-100 transition-opacity">
-            <div className="flex gap-2 w-full">
-              <select
-                value={selectedVideo}
-                onChange={(e) => handleSelectVideo(e.target.value)}
-                className="flex-1 p-2 text-sm rounded bg-gray-800 border border-gray-700 text-white focus:outline-none"
-              >
-                <option value="">-- Elige una película o serie --</option>
-                {videoList.map((video, idx) => (
-                  <option key={idx} value={video}>
-                    {video.replace(/[-_]/g, " ")}
-                  </option>
-                ))}
-              </select>
-
-              <label
-                className={`px-4 py-2 rounded text-sm font-medium transition cursor-pointer text-center whitespace-nowrap ${isUploading ? "bg-indigo-800 cursor-not-allowed" : "bg-indigo-600 hover:bg-indigo-700"}`}
-              >
-                {isUploading ? "Subiendo..." : "Subir Película"}
-                <input
-                  type="file"
-                  accept="video/*"
-                  onChange={handleFileUpload}
-                  disabled={isUploading}
-                  className="hidden"
-                />
-              </label>
-            </div>
-
-            {/* BARRA DE PROGRESO VISUAL */}
-            {isUploading && (
-              <div className="w-full mt-2">
-                <div className="flex justify-between text-xs text-gray-400 mb-1">
-                  <span>Procesando archivo en el VPS...</span>
-                  <span className="font-bold text-indigo-400">
-                    {uploadProgress}
-                  </span>
-                </div>
-                <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
-                  <div
-                    className="bg-indigo-500 h-full rounded-full transition-all duration-300 ease-out"
-                    style={{
-                      width: uploadProgress.includes("%")
-                        ? uploadProgress
-                        : "0%",
-                    }}
-                  ></div>
-                </div>
-              </div>
-            )}
-          </div>
           <div className="flex-1 flex flex-col justify-center bg-black rounded-lg overflow-hidden relative group">
             {/* Control superior para videoteca y carga */}
-            <div className="absolute top-4 left-4 right-4 z-10 flex flex-col sm:flex-row gap-2 bg-gray-900/90 p-2 rounded shadow-lg opacity-100 group-hover:opacity-100 transition-opacity">
-              <select
-                value={selectedVideo}
-                onChange={(e) => handleSelectVideo(e.target.value)}
-                className="flex-1 p-2 text-sm rounded bg-gray-800 border border-gray-700 text-white focus:outline-none"
-              >
-                <option value="">-- Elige una película o serie --</option>
-                {videoList.map((video, idx) => (
-                  <option key={idx} value={video}>
-                    {video.replace(/[-_]/g, " ")}
-                  </option>
-                ))}
-              </select>
+            {/* Control superior para videoteca y carga */}
+            <div className="absolute top-4 left-4 right-4 z-10 flex flex-col gap-2 bg-gray-900/95 p-3 rounded-lg shadow-xl opacity-100 group-hover:opacity-100 transition-opacity">
+              <div className="flex gap-2 w-full">
+                <select
+                  value={selectedVideo}
+                  onChange={(e) => handleSelectVideo(e.target.value)}
+                  className="flex-1 p-2 text-sm rounded bg-gray-800 border border-gray-700 text-white focus:outline-none"
+                >
+                  <option value="">-- Elige una película o serie --</option>
+                  {videoList.map((video, idx) => (
+                    <option key={idx} value={video}>
+                      {video.replace(/[-_]/g, " ")}
+                    </option>
+                  ))}
+                </select>
 
-              <label className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded text-sm font-medium transition cursor-pointer text-center whitespace-nowrap">
-                {isUploading ? uploadProgress : "Subir Película"}
-                <input
-                  type="file"
-                  accept="video/*"
-                  onChange={handleFileUpload}
-                  disabled={isUploading}
-                  className="hidden"
-                />
-              </label>
+                <label
+                  className={`px-4 py-2 rounded text-sm font-medium transition cursor-pointer text-center whitespace-nowrap ${isUploading ? "bg-indigo-800 cursor-not-allowed" : "bg-indigo-600 hover:bg-indigo-700"}`}
+                >
+                  {isUploading ? "Subiendo..." : "Subir Película"}
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={handleFileUpload}
+                    disabled={isUploading}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              {/* BARRA DE PROGRESO VISUAL */}
+              {isUploading && (
+                <div className="w-full mt-2">
+                  <div className="flex justify-between text-xs text-gray-400 mb-1">
+                    <span>Procesando archivo en el VPS...</span>
+                    <span className="font-bold text-indigo-400">
+                      {uploadProgress}
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-indigo-500 h-full rounded-full transition-all duration-300 ease-out"
+                      style={{
+                        width: uploadProgress.includes("%")
+                          ? uploadProgress
+                          : "0%",
+                      }}
+                    ></div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <video
