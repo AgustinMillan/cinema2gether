@@ -1,5 +1,10 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Peer from "peerjs";
+
+// Configuración de endpoints unificados en tu propio VPS
+const BASE_URL = "https://xhi.alquila110.tech";
+const API_URL = `${BASE_URL}/api`;
+const STREAM_URL = `${BASE_URL}/stream`;
 
 export default function App() {
   const [username, setUsername] = useState("");
@@ -10,7 +15,12 @@ export default function App() {
   const [roomId, setRoomId] = useState("");
   const [messages, setMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
-  const [videoUrlInput, setVideoUrlInput] = useState("");
+
+  // Sincronización y videoteca propia
+  const [videoList, setVideoList] = useState([]);
+  const [selectedVideo, setSelectedVideo] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState("");
 
   const peerRef = useRef(null);
   const connRef = useRef(null);
@@ -24,21 +34,23 @@ export default function App() {
     }
   }, [messages]);
 
-  // Función limpia-enlaces para asegurar el streaming directo
-  const formatDropboxUrl = (url) => {
-    if (!url.trim()) return "";
-    let cleanUrl = url.trim();
-
-    if (cleanUrl.includes("dropbox.com")) {
-      // Reemplaza dl=0 o cualquier otro parámetro por raw=1
-      if (cleanUrl.includes("?")) {
-        cleanUrl = cleanUrl.split("?")[0] + "?raw=1";
-      } else {
-        cleanUrl = cleanUrl + "?raw=1";
+  // Carga la lista de videos desde el VPS
+  const fetchVideos = async () => {
+    try {
+      const response = await fetch(`${API_URL}/videos`);
+      if (response.ok) {
+        const data = await response.json();
+        setVideoList(data);
       }
+    } catch (err) {
+      console.error("Error al conectar con la videoteca del VPS:", err);
     }
-    return cleanUrl;
   };
+
+  // Traer los videos disponibles en cuanto el componente se monta
+  useEffect(() => {
+    fetchVideos();
+  }, []);
 
   const setupConnection = (currentConn) => {
     connRef.current = currentConn;
@@ -49,18 +61,16 @@ export default function App() {
         { type: "system", text: "¡Conectados! Sincronizando sesión..." },
       ]);
 
-      // 1. AVISO DE UNIÓN
       currentConn.send({
         type: "system",
         text: `${username || "Alguien"} se ha unido a la sala.`,
       });
 
-      // 2. EL TRUCO: Si yo soy el Host y ya tengo un video cargado, se lo "inyecto" al invitado inmediatamente
-      if (videoRef.current && videoRef.current.src) {
-        // Le mandamos la URL actual y el segundo exacto en el que vamos
+      // Si soy el Host y ya tengo un video corriendo, se lo inyecto con el timestamp actual al invitado
+      if (videoRef.current && videoRef.current.src && selectedVideo) {
         currentConn.send({
           type: "welcome-sync",
-          url: videoUrlInput, // El estado con la URL de tu Nginx
+          filename: selectedVideo,
           time: videoRef.current.currentTime,
           isPlaying: !videoRef.current.paused,
         });
@@ -85,19 +95,17 @@ export default function App() {
           break;
         case "video-src":
           if (videoRef.current) {
-            videoRef.current.src = data.url;
-            setVideoUrlInput(data.url);
+            videoRef.current.src = `${STREAM_URL}/${data.filename}`;
+            setSelectedVideo(data.filename);
           }
           break;
-        // 3. El Invitado recibe el estado inicial del Host aquí:
         case "welcome-sync":
           if (videoRef.current) {
             ignoreVideoEvents.current = true;
-            videoRef.current.src = data.url;
-            setVideoUrlInput(data.url);
+            videoRef.current.src = `${STREAM_URL}/${data.filename}`;
+            setSelectedVideo(data.filename);
             videoRef.current.currentTime = data.time;
 
-            // Si el host ya le había dado play, lo reproducimos de una
             if (data.isPlaying) {
               videoRef.current.play().catch(() => {});
             }
@@ -122,10 +130,11 @@ export default function App() {
       }
     });
   };
+
   const handleCreateRoom = () => {
     const customId = roomIdInput.trim();
     setIsRoomJoined(true);
-    
+
     const peer = customId ? new Peer(customId) : new Peer();
     peerRef.current = peer;
 
@@ -142,7 +151,9 @@ export default function App() {
 
     peer.on("error", (err) => {
       if (err.type === "unavailable-id") {
-        alert("El ID de sala solicitado ya está en uso. Por favor, elige otro o déjalo en blanco para uno aleatorio.");
+        alert(
+          "El ID de sala solicitado ya está en uso. Por favor, elige otro o déjalo en blanco.",
+        );
         setIsRoomJoined(false);
         if (peerRef.current) {
           peerRef.current.destroy();
@@ -171,7 +182,9 @@ export default function App() {
 
     peer.on("error", (err) => {
       if (err.type === "peer-unavailable") {
-        alert("No se encontró la sala con ese ID. Verifica que tu pareja la haya creado correctamente.");
+        alert(
+          "No se encontró la sala con ese ID. Verifica que tu pareja la haya creado correctamente.",
+        );
         setIsRoomJoined(false);
         if (peerRef.current) {
           peerRef.current.destroy();
@@ -184,20 +197,51 @@ export default function App() {
     });
   };
 
-  // Cargar y transmitir el video de Dropbox
-  const handleLoadVideo = () => {
-    const rawUrl = videoUrlInput.trim();
-    if (!rawUrl) return;
-
-    const streamableUrl = formatDropboxUrl(rawUrl);
-    setVideoUrlInput(streamableUrl); // Actualiza la barra con el link corregido
+  // Manejar el cambio de video desde la lista del VPS
+  const handleSelectVideo = (filename) => {
+    if (!filename) return;
+    setSelectedVideo(filename);
+    const fullUrl = `${STREAM_URL}/${filename}`;
 
     if (videoRef.current) {
-      videoRef.current.src = streamableUrl;
+      videoRef.current.src = fullUrl;
     }
 
     if (connRef.current) {
-      connRef.current.send({ type: "video-src", url: streamableUrl });
+      connRef.current.send({ type: "video-src", filename: filename });
+    }
+  };
+
+  // Subir un video nuevo mediante la API
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("video", file);
+
+    setIsUploading(true);
+    setUploadProgress("Subiendo archivo...");
+
+    try {
+      const response = await fetch(`${API_URL}/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (response.ok) {
+        setUploadProgress("¡Subido con éxito!");
+        await fetchVideos(); // Refrescar videoteca
+      } else {
+        setUploadProgress("Error al subir archivo");
+      }
+    } catch (err) {
+      setUploadProgress("Fallo en la conexión");
+    } finally {
+      setTimeout(() => {
+        setIsUploading(false);
+        setUploadProgress("");
+      }, 3000);
     }
   };
 
@@ -297,26 +341,37 @@ export default function App() {
         /* SALA DE STREAMING */
         <div className="w-full h-screen max-h-[95vh] flex flex-col md:flex-row gap-4">
           <div className="flex-1 flex flex-col justify-center bg-black rounded-lg overflow-hidden relative group">
-            {/* Input para Dropbox */}
-            <div className="absolute top-4 left-4 right-4 z-10 flex gap-2 bg-gray-900/90 p-2 rounded shadow-lg opacity-100 group-hover:opacity-100 transition-opacity">
-              <input
-                type="text"
-                value={videoUrlInput}
-                onChange={(e) => setVideoUrlInput(e.target.value)}
+            {/* Control superior para videoteca y carga */}
+            <div className="absolute top-4 left-4 right-4 z-10 flex flex-col sm:flex-row gap-2 bg-gray-900/90 p-2 rounded shadow-lg opacity-100 group-hover:opacity-100 transition-opacity">
+              <select
+                value={selectedVideo}
+                onChange={(e) => handleSelectVideo(e.target.value)}
                 className="flex-1 p-2 text-sm rounded bg-gray-800 border border-gray-700 text-white focus:outline-none"
-                placeholder="Pega el link de compartir de Dropbox aquí..."
-              />
-              <button
-                onClick={handleLoadVideo}
-                className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded text-sm font-medium transition"
               >
-                Cargar
-              </button>
+                <option value="">-- Elige una película o serie --</option>
+                {videoList.map((video, idx) => (
+                  <option key={idx} value={video}>
+                    {video.replace(/[-_]/g, " ")}
+                  </option>
+                ))}
+              </select>
+
+              <label className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded text-sm font-medium transition cursor-pointer text-center whitespace-nowrap">
+                {isUploading ? uploadProgress : "Subir Película"}
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={handleFileUpload}
+                  disabled={isUploading}
+                  className="hidden"
+                />
+              </label>
             </div>
 
             <video
               ref={videoRef}
               controls
+              crossOrigin="anonymous"
               onPlay={() => broadcastVideoEvent("play")}
               onPause={() => broadcastVideoEvent("pause")}
               onSeeking={() => broadcastVideoEvent("seek")}
